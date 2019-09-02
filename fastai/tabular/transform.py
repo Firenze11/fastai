@@ -4,7 +4,7 @@ from pandas.api.types import is_numeric_dtype
 from datetime import date, datetime
 import calendar
 
-__all__ = ['add_datepart', 'cont_cat_split', 'Categorify', 'FillMissing', 'FillStrategy', 'Normalize', 'TabularProc',
+__all__ = ['add_datepart', 'cont_cat_split', 'Categorify', 'Numericalize', 'FillMissing', 'FillStrategy', 'Normalize', 'TabularProc',
            'add_elapsed_times', 'make_date', 'add_cyclic_datepart']
 
 def make_date(df:DataFrame, date_field:str):
@@ -143,6 +143,34 @@ class Categorify(TabularProc):
         "Transform `self.cat_names` columns in categorical using the codes decided in `apply_train`."
         for n in self.cat_names:
             df.loc[:,n] = pd.Categorical(df[n], categories=self.categories[n], ordered=True)
+
+@dataclass
+class Numericalize(TabularProc):
+    "Transform the categorical variables to numeric representations."
+    max_n_cat:int=None
+    def apply_train(self, df:DataFrame):
+        "Transform `self.cat_names` columns to numerical representation."
+        for n in self.cat_names:
+            if self.max_n_cat is not None and len(df[n].cat.categories) > self.max_n_cat:
+                df.loc[:,n] = pd.Categorical(df.loc[:,n]).codes + 1
+            else:
+                onehot_df = pd.get_dummies(df.loc[:,[n]], drop_first=True)
+                df.drop(n, axis=1, inplace=True)
+                # like concat, but modify df in-place
+                for c in onehot_df.columns:
+                    df[c] = onehot_df[c].values
+
+    def apply_test(self, df:DataFrame):
+        "Transform `self.cat_names` columns to numerical representation like in `apply_train`."
+        for n in self.cat_names:
+            if self.max_n_cat is not None and len(df[n].cat.categories) > self.max_n_cat:
+                df.loc[:,n] = pd.Categorical(df.loc[:,n]).codes+1
+            else:
+                onehot_df = pd.get_dummies(df.loc[:,[n]], drop_first=True)
+                df.drop(n, axis=1, inplace=True)
+                # like concat, but modify df in-place
+                for c in onehot_df.columns:
+                    df[c] = onehot_df[c].values
 
 FillStrategy = IntEnum('FillStrategy', 'MEDIAN COMMON CONSTANT')
 
